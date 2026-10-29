@@ -100,6 +100,9 @@
     .firework-flash { position: absolute; width: 36px; height: 36px; margin: -18px; border-radius: 50%; background: radial-gradient(circle, #fff 0, var(--spark-color) 20%, transparent 70%); opacity: 0; }
     .firework-spark { position: absolute; border-radius: 999px; background: linear-gradient(transparent, var(--spark-color) 65%, #fff); box-shadow: 0 0 8px var(--spark-color), 0 0 18px var(--spark-color); opacity: 0; }
     .firework-spark::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; border-radius: 50%; background: #fff; }
+    @media (min-width: 901px) {
+      .app { padding-inline: clamp(64px, 7vw, 160px); }
+    }
     @media (min-width: 901px) and (max-height: 850px) {
       .app { padding-top: 20px; }
       .game-screen { height: calc(100svh - 20px); gap: 28px; padding-bottom: 32px; }
