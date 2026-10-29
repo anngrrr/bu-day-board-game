@@ -31,6 +31,7 @@ NOTES
 
 - The design uses the supplied PDF's white background and small red WSP logo.
 - The board fills the first screen; scroll down to enter hours.
+- The board uses the available browser width with side padding, without a desktop width cap.
 - Team labels on the board use compact light-gray panels without color strips.
   Final results retain their full-height team-color indicators.
   Pieces appear on the timeline, without duplicates in the team labels.
