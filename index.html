@@ -169,7 +169,7 @@
         <div class="brand">
           <img class="logo" src="./wsp-logo.jpg" width="214" height="103" alt="WSP">
         </div>
-        <ol class="stages" id="stages" aria-label="Events" aria-live="polite"></ol>
+        <ol class="stages" id="stages" aria-label="Rounds" aria-live="polite"></ol>
       </header>
 
       <section class="hero">
@@ -209,7 +209,7 @@
     const TIMELINE_HOURS = 55;
     const DEADLINE = 40;
     const STORAGE_KEY = 'projectRaceStateV3';
-    const STAGES = ['Event 1', 'Event 2'];
+    const STAGES = ['Round 1', 'Round 2'];
     const COLORS = ['#d92336','#202729','#f2b51c','#df1597','#00b5e5','#5b9092','#bd7381','#8b9c54','#bd7950','#777ca3'];
     const PIECES = ['🚂','🏠','🎩','🚗','🐕','⛵','🐈','🎲','🛸','🔑'];
 
@@ -291,7 +291,7 @@
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...nextState, teams: teamSignature() }));
       } catch (error) {
         if (!(error instanceof DOMException)) throw error;
-        showNotice('Could not save progress. Your event has not been changed. Allow browser storage and try again.', error);
+        showNotice('Could not save progress. Your round has not been changed. Allow browser storage and try again.', error);
         return false;
       }
       state = nextState;
@@ -412,7 +412,9 @@
       results.hidden = !state.resultsVisible;
       if (results.hidden) return;
       const last = currentData();
-      document.getElementById('resultRows').innerHTML = teams.map((team, i) => `
+      const sortedTeams = teams.map((team, i) => ({ team, i }))
+        .sort((a, b) => last[a.i].hours - last[b.i].hours || a.i - b.i);
+      document.getElementById('resultRows').innerHTML = sortedTeams.map(({ team, i }) => `
         <div class="result-row" style="--team-color:${COLORS[i]}">
           <span class="result-piece"><span class="token-shape" aria-hidden="true">${PIECES[i]}</span></span>
           <span class="result-name">${escapeHTML(team.name)}</span>
