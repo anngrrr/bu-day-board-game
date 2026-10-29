@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Timeline Game</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --ink: #172027;
+      --muted: #727b83;
+      --line: #e6eaed;
+      --panel: #f6f8f9;
+      --danger: #d92336;
+    }
+    [hidden] { display: none !important; }
+    html { color: var(--ink); background: white; }
+    body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; }
+    button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+    .app { width: min(1440px, 100%); margin: auto; padding: 32px clamp(20px, 4.45vw, 64px) 0; }
+    .game-screen { height: calc(100svh - 32px); min-height: calc(var(--team-count, 5) * 64px + 280px); display: flex; flex-direction: column; gap: 32px; padding-bottom: 40px; }
+    .topbar, .brand, .hero, .admin-actions { display: flex; align-items: center; justify-content: space-between; }
+    .topbar { gap: 20px; min-height: 42px; }
+    .brand { justify-content: flex-start; gap: 24px; }
+    .logo { display: block; width: 75px; height: auto; }
+    .stages { display: flex; align-items: center; list-style: none; gap: 22px; margin: 0; padding: 12px 20px; border-radius: 999px; background: var(--panel); font-size: 12px; }
+    .stages li { display: flex; align-items: center; gap: 9px; color: var(--muted); white-space: nowrap; }
+    .stages li + li::before { content: "/"; margin-right: 10px; color: #b8c0c6; }
+    .stages .current { color: var(--ink); font-weight: 650; }
+    .stage-marker { width: 8px; height: 8px; border: 1px solid #b8c0c6; border-radius: 50%; }
+    .current .stage-marker { background: var(--danger); border-color: var(--danger); }
+    .done .stage-marker { width: 13px; height: 8px; border: 0; border-bottom: 2px solid var(--muted); border-left: 2px solid var(--muted); border-radius: 0; transform: translateY(-2px) rotate(-45deg); }
+    .hero { align-items: flex-end; gap: 24px; padding: 12px 0 26px; border-bottom: 1px solid var(--line); }
+    h1 { margin: 0; font-size: clamp(32px, 4vw, 54px); font-weight: 650; line-height: 1.1; letter-spacing: -.05em; }
+    .board { display: flex; flex: 1; min-width: 0; min-height: 0; }
+    .board-inner { flex: 1; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+    #rows { display: grid; grid-template-rows: repeat(var(--team-count, 5), minmax(0, 1fr)); }
+    .axis-row, .team-row, .timeline-foot { display: grid; grid-template-columns: minmax(0, .25fr) minmax(0, 1fr) 110px; gap: clamp(20px, 2.2vw, 32px); align-items: center; }
+    .axis { position: relative; height: 44px; margin-top: 8px; }
+    .tick { position: absolute; top: 16px; transform: translateX(-50%); color: var(--muted); font-size: 11px; }
+    .tick.deadline { color: var(--danger); font-weight: 650; }
+    .team-row { min-height: clamp(62px, 7.8vh, 80px); border-bottom: 1px solid #f0f2f4; }
+    .team-label { position: relative; display: flex; align-items: center; align-self: stretch; min-width: 0; gap: 20px; padding: 0 22px; background: var(--panel); }
+    .result-row::before { content: ""; position: absolute; top: 0; left: 0; height: 100%; aspect-ratio: 1 / 8; background: var(--team-color); }
+    .track { position: relative; align-self: stretch; min-width: 0; }
+    .track::before { content: ""; position: absolute; inset: 0 0 0 var(--deadline); border-left: 1px dashed #e8a1aa; background: #fdf5f6; }
+    .team-row:first-child .track::before { border-top-left-radius: 8px; border-top-right-radius: 8px; }
+    .team-row:last-child .track::before { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+    .track-rail, .track-progress { position: absolute; top: 50%; height: 12px; transform: translateY(-50%); border-radius: 6px; }
+    .track-rail { left: 0; right: 0; background: #edf0f2; }
+    .track-progress { left: 0; background: var(--team-color); transition: width .85s cubic-bezier(.2,.8,.2,1); }
+    .token { position: absolute; top: 50%; width: 52px; height: 52px; transform: translate(-50%, -50%); display: grid; place-items: center; z-index: 1; transition: left .85s cubic-bezier(.2,.8,.2,1); }
+    .token-shape { display: block; font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif; font-size: 38px; line-height: 1; filter: drop-shadow(0 3px 3px #17202720); }
+    .total-hours { padding-right: 16px; text-align: right; white-space: nowrap; font-size: 29px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .total-hours small { margin-left: 7px; color: var(--muted); font-size: 14px; font-weight: 400; }
+    .total-hours.long-total { font-size: 16px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+    .timeline-foot { height: 28px; }
+    .overtime-label { grid-column: 2; margin-left: var(--deadline); color: #b96a75; text-align: center; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; }
+    .admin { margin: 40px -16px 48px; padding: 28px 22px; border-radius: 14px; background: var(--panel); }
+    .admin-inputs { display: grid; grid-template-columns: repeat(var(--input-columns), minmax(0, 1fr)); gap: 16px; }
+    .admin-team { min-width: 0; }
+    .admin-team label { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; font-size: 12px; font-weight: 550; }
+    .team-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--team-color); }
+    .field { position: relative; }
+    .field input { display: block; width: 100%; height: 46px; padding: 8px 36px 8px 15px; border: 1px solid var(--line); border-radius: 7px; outline: none; background: white; color: var(--ink); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; appearance: textfield; }
+    .field input::-webkit-inner-spin-button, .field input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+    .field input::placeholder { color: #a4acb3; font-weight: 400; }
+    .field input:focus { border-color: var(--team-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--team-color) 16%, transparent); }
+    .field input.invalid { border-color: var(--danger); background: #fff7f8; }
+    .field-unit { position: absolute; right: 15px; top: 14px; color: var(--muted); font-size: 12px; pointer-events: none; }
+    .field-error { display: block; margin-top: 6px; color: var(--danger); font-size: 11px; }
+    .admin-actions { gap: 24px; margin-top: 14px; }
+    .action-buttons { display: flex; align-items: center; gap: 32px; margin-left: auto; }
+    .reset { width: 44px; min-height: 46px; padding: 10px 0; border: 0; background: transparent; color: var(--muted); font-size: 21px; line-height: 1; }
+    .reset:hover { color: var(--danger); }
+    .primary-button { display: flex; align-items: center; justify-content: space-between; gap: 28px; min-width: 226px; min-height: 46px; padding: 12px 20px; border: 1px solid var(--ink); border-radius: 8px; background: var(--ink); color: white; font-size: 13px; font-weight: 600; }
+    .primary-button::after { content: "\2192"; font-size: 23px; font-weight: 400; line-height: 1; }
+    .primary-button:hover:not(:disabled) { background: #303e48; }
+    .primary-button:disabled { border-color: #dce1e5; background: #dce1e5; color: #7e8992; }
+    .admin.is-finished .admin-actions { margin-top: 0; }
+    .results { min-height: 100svh; padding: 36px 0 48px; display: flex; flex-direction: column; gap: 36px; }
+    .results-content { width: min(100%, 920px); margin: auto; }
+    h2 { margin: 0 0 40px; font-size: clamp(34px, 4vw, 54px); font-weight: 650; letter-spacing: -.04em; }
+    .result-row { position: relative; display: flex; align-items: center; gap: 20px; min-height: 90px; padding: 16px 22px 16px 31px; border-bottom: 1px solid var(--line); }
+    .result-piece { display: grid; place-items: center; flex: 0 0 52px; width: 52px; height: 52px; }
+    .result-name { min-width: 0; overflow-wrap: anywhere; font-size: 22px; font-weight: 600; }
+    .result-hours { margin-left: auto; padding-right: 0; }
+    .result-hours.long-total { max-width: 120px; }
+    .results.is-dense .result-row { min-height: 62px; padding-block: 6px; }
+    .results.is-dense .result-name { font-size: 18px; }
+    .results.is-dense h2 { margin-bottom: 24px; }
+    .notice, .error { padding: 16px; border: 1px solid var(--danger); border-radius: 8px; color: #a31b2a; background: #fff7f8; font-size: 14px; }
+    .notice { margin-bottom: 20px; }
+    .loading { padding: 40px; color: var(--muted); text-align: center; }
+    .fireworks { position: fixed; inset: 0; z-index: 100; overflow: hidden; }
+    .firework { position: absolute; width: 0; height: 0; }
+    .firework-flash { position: absolute; width: 36px; height: 36px; margin: -18px; border-radius: 50%; background: radial-gradient(circle, #fff 0, var(--spark-color) 20%, transparent 70%); opacity: 0; }
+    .firework-spark { position: absolute; border-radius: 999px; background: linear-gradient(transparent, var(--spark-color) 65%, #fff); box-shadow: 0 0 8px var(--spark-color), 0 0 18px var(--spark-color); opacity: 0; }
+    .firework-spark::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; border-radius: 50%; background: #fff; }
+    @media (min-width: 901px) and (max-height: 850px) {
+      .app { padding-top: 20px; }
+      .game-screen { height: calc(100svh - 20px); gap: 28px; padding-bottom: 32px; }
+      .topbar { min-height: 34px; }
+      .logo { width: 68px; }
+      .hero { padding: 0 0 16px; }
+      h1 { font-size: 38px; }
+      .axis { height: 34px; margin-top: 0; }
+      .tick { top: 10px; }
+      .team-row { min-height: 56px; }
+      .timeline-foot { height: 22px; }
+      .admin-team label { margin-bottom: 8px; }
+      .admin-actions { margin-top: 12px; }
+      .results { gap: 20px; padding-top: 24px; }
+      .result-row { min-height: 78px; }
+    }
+    @media (max-width: 1100px) {
+      .brand { gap: 16px; }
+      .admin-inputs { gap: 12px; }
+    }
+    @media (max-width: 900px) {
+      .game-screen { min-height: calc(var(--team-count, 5) * 76px + 280px); gap: 28px; }
+      .hero { align-items: flex-start; }
+      .board { overflow-x: auto; padding: 0 20px; margin: 0 -20px; }
+      .board-inner { min-width: 820px; }
+      .axis-row, .team-row, .timeline-foot { grid-template-columns: minmax(0, .25fr) minmax(0, 1fr) 80px; gap: 24px; }
+      .team-row { min-height: 76px; }
+      .admin-inputs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .admin-actions { align-items: flex-end; }
+      .action-buttons { gap: 20px; }
+      .result-name { font-size: 19px; }
+    }
+    @media (max-width: 540px) {
+      .app { padding-top: 20px; }
+      .topbar { gap: 12px; }
+      .logo { width: 62px; }
+      .game-screen { height: calc(100svh - 20px); }
+      .stages { gap: 12px; padding: 10px 12px; font-size: 11px; }
+      .stages li { gap: 6px; }
+      .stages li + li::before { margin-right: 3px; }
+      .hero { gap: 12px; padding-top: 0; }
+      h1 { max-width: 250px; font-size: 32px; }
+      .admin { margin: 40px 0; padding: 24px 16px; }
+      .admin-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .admin-actions { flex-direction: column; align-items: stretch; }
+      .action-buttons { gap: 16px; justify-content: space-between; margin-left: 0; }
+      .primary-button { min-width: 0; gap: 16px; padding-inline: 16px; }
+      .results { gap: 32px; }
+      .result-row { gap: 12px; min-height: 82px; padding: 12px; }
+      .result-piece { flex-basis: 44px; width: 44px; }
+      .result-name { font-size: 16px; }
+      .result-hours { font-size: 25px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .token, .track-progress { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="notice" id="notice" role="alert" hidden></div>
+    <div class="game-screen">
+      <header class="topbar">
+        <div class="brand">
+          <img class="logo" src="./wsp-logo.jpg" width="214" height="103" alt="WSP">
+        </div>
+        <ol class="stages" id="stages" aria-label="Events" aria-live="polite"></ol>
+      </header>
+
+      <section class="hero">
+        <h1>Project Timeline</h1>
+      </section>
+
+      <section class="board" id="board" aria-label="Delivery timeline">
+        <div class="loading">Loading teams...</div>
+      </section>
+
+    </div>
+
+    <section class="admin" id="admin" hidden>
+      <form id="hoursForm">
+        <div class="admin-inputs" id="adminInputs"></div>
+        <div class="admin-actions">
+          <div class="action-buttons">
+            <button class="reset" id="resetButton" type="button" aria-label="Reset game" title="Reset game">↻</button>
+            <button class="primary-button" id="recordButton" type="submit" disabled></button>
+            <button class="primary-button" id="showResultsButton" type="button" hidden>Show final results</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="results" id="results" aria-labelledby="resultsTitle" hidden>
+      <img class="logo" src="./wsp-logo.jpg" width="214" height="103" alt="WSP">
+      <div class="results-content">
+        <h2 id="resultsTitle">🏆 Final Results</h2>
+        <div id="resultRows"></div>
+      </div>
+    </section>
+  </main>
+  <div class="fireworks" id="fireworks" aria-hidden="true" hidden></div>
+
+  <script>
+    const TIMELINE_HOURS = 55;
+    const DEADLINE = 40;
+    const STORAGE_KEY = 'projectRaceStateV3';
+    const STAGES = ['Event 1', 'Event 2'];
+    const COLORS = ['#d92336','#202729','#f2b51c','#df1597','#00b5e5','#5b9092','#bd7381','#8b9c54','#bd7950','#777ca3'];
+    const PIECES = ['🚂','🏠','🎩','🚗','🐕','⛵','🐈','🎲','🛸','🔑'];
+
+    let teams = [];
+    let state = { stage: 0, records: [], resultsVisible: false };
+    let celebrating = false;
+
+    const board = document.getElementById('board');
+    const admin = document.getElementById('admin');
+    const adminInputs = document.getElementById('adminInputs');
+    const form = document.getElementById('hoursForm');
+    const recordButton = document.getElementById('recordButton');
+    const results = document.getElementById('results');
+    const notice = document.getElementById('notice');
+
+    function parseCSV(text) {
+      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim());
+      if (lines.length < 2) throw new Error('CSV must contain a header and at least one team.');
+      const headers = lines[0].split(',').map(x => x.trim().toLowerCase());
+      const numberIndex = headers.indexOf('number');
+      const nameIndex = headers.indexOf('name');
+      if (numberIndex < 0 || nameIndex < 0) throw new Error('CSV headers must be: number,name');
+      const parsed = lines.slice(1).map((line, index) => {
+        const cells = line.split(',').map(x => x.trim());
+        return { number: cells[numberIndex] || String(index + 1), name: cells[nameIndex] || `Team ${index + 1}` };
+      });
+      if (parsed.length > 10) throw new Error('CSV must contain between 1 and 10 teams.');
+      return parsed;
+    }
+
+    function teamSignature() {
+      return JSON.stringify(teams);
+    }
+
+    function validSavedState(saved) {
+      return saved !== null && typeof saved === 'object'
+        && saved.teams === teamSignature()
+        && Number.isInteger(saved.stage) && saved.stage >= 0 && saved.stage <= STAGES.length
+        && typeof saved.resultsVisible === 'boolean' && (!saved.resultsVisible || saved.stage === STAGES.length)
+        && Array.isArray(saved.records) && saved.records.length === saved.stage
+        && saved.records.every((record, stage) =>
+          Array.isArray(record) && record.length === teams.length
+          && record.every((data, i) => data !== null && typeof data === 'object'
+            && Number.isSafeInteger(data.hours) && data.hours >= 0
+            && (stage === 0 || data.hours >= saved.records[stage - 1][i].hours)));
+    }
+
+    function showNotice(message, error) {
+      notice.textContent = message;
+      notice.hidden = false;
+      console.error(message, error);
+    }
+
+    function discardInvalidSave(error) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      showNotice('Saved progress could not be restored. The game has been reset.', error);
+    }
+
+    function loadState() {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw === null) return;
+      let saved;
+      try {
+        saved = JSON.parse(raw);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        discardInvalidSave(error);
+        return;
+      }
+      if (!validSavedState(saved)) {
+        discardInvalidSave(new Error('Saved progress does not match the current teams or hour format.'));
+        return;
+      }
+      state = { stage: saved.stage, records: saved.records, resultsVisible: saved.resultsVisible };
+    }
+
+    function saveState(nextState) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...nextState, teams: teamSignature() }));
+      } catch (error) {
+        if (!(error instanceof DOMException)) throw error;
+        showNotice('Could not save progress. Your event has not been changed. Allow browser storage and try again.', error);
+        return false;
+      }
+      state = nextState;
+      notice.hidden = true;
+      return true;
+    }
+
+    function currentData() {
+      return state.records.length ? state.records[state.records.length - 1] : teams.map(() => ({ hours: 0 }));
+    }
+
+    function renderAxis() {
+      return Array.from({ length: TIMELINE_HOURS / 5 + 1 }, (_, i) => i * 5).map(hour =>
+        `<span class="tick ${hour === DEADLINE ? 'deadline' : ''}" style="left:${hour / TIMELINE_HOURS * 100}%">${hour}</span>`
+      ).join('');
+    }
+
+    function tokenMarkup(team, index, data) {
+      const position = Math.min(data.hours, TIMELINE_HOURS) / TIMELINE_HOURS * 100;
+      return `
+        <div class="team-row" style="--team-color:${COLORS[index]}">
+          <div class="team-label">
+            <strong class="result-name" title="${escapeHTML(team.name)}">${escapeHTML(team.name)}</strong>
+          </div>
+          <div class="track">
+            <div class="track-rail"></div>
+            <div class="track-progress" style="width:${position}%"></div>
+            <div class="token" style="left:${position}%" title="${escapeHTML(team.name)}: ${data.hours} h">
+              <span class="token-shape" aria-hidden="true">${PIECES[index]}</span>
+            </div>
+          </div>
+          <div class="total-hours${data.hours >= 10000 ? ' long-total' : ''}">${data.hours}<small>h</small></div>
+        </div>`;
+    }
+
+    function renderBoard() {
+      const data = currentData();
+      document.documentElement.style.setProperty('--deadline', `${DEADLINE / TIMELINE_HOURS * 100}%`);
+      document.querySelector('.game-screen').style.setProperty('--team-count', teams.length);
+      board.innerHTML = `
+        <div class="board-inner">
+          <div class="axis-row"><div></div><div class="axis">${renderAxis()}</div><div></div></div>
+          <div id="rows">${teams.map((team, i) => tokenMarkup(team, i, data[i])).join('')}</div>
+          <div class="timeline-foot"><span class="overtime-label">Overtime</span></div>
+        </div>`;
+    }
+
+    function renderAdmin() {
+      const finished = state.stage === STAGES.length;
+      document.getElementById('stages').innerHTML = STAGES.map((name, i) =>
+        `<li class="${i < state.stage ? 'done' : i === state.stage ? 'current' : ''}" ${i === state.stage ? 'aria-current="step"' : ''}>
+          <span class="stage-marker" aria-hidden="true"></span>${name}
+        </li>`
+      ).join('');
+      document.getElementById('showResultsButton').hidden = !finished;
+      recordButton.hidden = finished;
+      recordButton.textContent = finished ? '' : STAGES[state.stage];
+      admin.classList.toggle('is-finished', finished);
+      admin.style.setProperty('--input-columns', Math.min(teams.length, 5));
+      adminInputs.innerHTML = finished ? '' : teams.map((team, i) => `
+        <div class="admin-team" style="--team-color:${COLORS[i]}">
+          <label for="hours-${i}"><span class="team-dot" aria-hidden="true"></span>${escapeHTML(team.name)}</label>
+          <div class="field">
+            <input id="hours-${i}" data-team="${i}" type="number" inputmode="numeric" min="0" step="1" required placeholder="0"
+              aria-label="${escapeHTML(team.name)} hours for ${STAGES[state.stage]}" aria-describedby="hours-error-${i}">
+            <span class="field-unit" aria-hidden="true">h</span>
+          </div>
+          <span class="field-error" id="hours-error-${i}" hidden>Whole hours only</span>
+        </div>`).join('');
+      admin.hidden = false;
+      validateInputs();
+    }
+
+    function parseHours(value) {
+      if (!/^\d+$/.test(value)) return null;
+      const hours = Number(value);
+      return Number.isSafeInteger(hours) ? hours : null;
+    }
+
+    function validateInputs() {
+      if (state.stage === STAGES.length) return false;
+      const previous = currentData();
+      let valid = true;
+      adminInputs.querySelectorAll('input').forEach((input, i) => {
+        const hours = parseHours(input.value);
+        const overflow = hours !== null && !Number.isSafeInteger(previous[i].hours + hours);
+        const inputValid = hours !== null && !overflow;
+        const message = overflow ? 'Total hours are too large.' : 'Whole hours only';
+        input.setCustomValidity(inputValid ? '' : message);
+        const showError = !inputValid && (input.value !== '' || input.validity.badInput);
+        input.classList.toggle('invalid', showError);
+        input.setAttribute('aria-invalid', String(showError));
+        const error = document.getElementById(`hours-error-${i}`);
+        error.textContent = message;
+        error.hidden = !showError;
+        if (!inputValid) valid = false;
+      });
+      recordButton.disabled = !valid;
+      return valid;
+    }
+
+    function completeStage(event) {
+      event.preventDefault();
+      if (!validateInputs()) {
+        form.reportValidity();
+        return;
+      }
+      const previous = currentData();
+      const record = Array.from(adminInputs.querySelectorAll('input'), (input, i) => ({
+        hours: previous[i].hours + parseHours(input.value)
+      }));
+      if (!saveState({ stage: state.stage + 1, records: [...state.records, record], resultsVisible: false })) return;
+      renderBoard();
+      renderAdmin();
+    }
+
+    function renderResults() {
+      results.hidden = !state.resultsVisible;
+      if (results.hidden) return;
+      const last = currentData();
+      document.getElementById('resultRows').innerHTML = teams.map((team, i) => `
+        <div class="result-row" style="--team-color:${COLORS[i]}">
+          <span class="result-piece"><span class="token-shape" aria-hidden="true">${PIECES[i]}</span></span>
+          <span class="result-name">${escapeHTML(team.name)}</span>
+          <span class="total-hours result-hours${last[i].hours >= 10000 ? ' long-total' : ''}">${last[i].hours}<small>h</small></span>
+        </div>`).join('');
+      results.classList.toggle('is-dense', teams.length > 5);
+    }
+
+    function scrollToResults() {
+      const target = Math.min(scrollY + results.getBoundingClientRect().top, document.documentElement.scrollHeight - innerHeight);
+      const deadline = performance.now() + 2000;
+      results.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+      return new Promise(resolve => {
+        function checkPosition() {
+          if (Math.abs(scrollY - target) < 1) {
+            resolve();
+          } else if (performance.now() >= deadline) {
+            results.scrollIntoView({ behavior: 'instant', block: 'start' });
+            resolve();
+          } else {
+            requestAnimationFrame(checkPosition);
+          }
+        }
+        requestAnimationFrame(checkPosition);
+      });
+    }
+
+    async function playFireworks() {
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const overlay = document.getElementById('fireworks');
+      const animations = [];
+      const palette = ['#ffbd32', '#ff4571', '#00cfff', '#e965ff', '#ffd878', '#62e7b0'];
+      const bursts = [
+        { x: 22, y: 35, size: .65, count: 80, delay: 0 },
+        { x: 76, y: 28, size: .95, count: 110, delay: 220 },
+        { x: 48, y: 42, size: 1.15, count: 140, delay: 600 },
+        { x: 12, y: 62, size: .45, count: 64, delay: 1000 },
+        { x: 87, y: 60, size: .55, count: 72, delay: 1250 },
+        { x: 33, y: 25, size: .75, count: 96, delay: 1650 },
+        { x: 68, y: 38, size: 1, count: 120, delay: 1900 },
+        { x: 24, y: 55, size: .6, count: 80, delay: 2300 },
+        { x: 54, y: 24, size: 1.25, count: 160, delay: 2500 }
+      ];
+      overlay.hidden = false;
+      try {
+        for (const [burstIndex, burst] of bursts.entries()) {
+          const firework = document.createElement('div');
+          firework.className = 'firework';
+          firework.style.left = `${burst.x}%`;
+          firework.style.top = `${burst.y}%`;
+          const color = palette[burstIndex % palette.length];
+          firework.style.setProperty('--spark-color', color);
+          overlay.append(firework);
+          const flash = document.createElement('span');
+          flash.className = 'firework-flash';
+          firework.append(flash);
+          animations.push(flash.animate([
+            { transform: 'scale(.2)', opacity: 0 },
+            { transform: 'scale(2)', opacity: .8, offset: .15 },
+            { transform: 'scale(6)', opacity: 0 }
+          ], { duration: 550, delay: burst.delay }));
+          for (let i = 0; i < burst.count; i++) {
+            const spark = document.createElement('span');
+            spark.className = 'firework-spark';
+            spark.style.setProperty('--spark-color', i % 4 === 0 ? '#ffd878' : color);
+            spark.style.width = `${2 + Math.random() * 3}px`;
+            spark.style.height = `${7 + Math.random() * 14}px`;
+            firework.append(spark);
+            const angle = i / burst.count * Math.PI * 2;
+            const radius = Math.min(innerWidth * .38, innerHeight * .42, 320) * burst.size * (.45 + Math.sqrt(Math.random()) * .55);
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            const rotation = angle * 180 / Math.PI - 90;
+            animations.push(spark.animate([
+              { transform: 'translate(0, 0) scale(.5)', opacity: 1 },
+              { transform: `translate(${x * .8}px, ${y * .8}px) rotate(${rotation}deg) scale(1)`, opacity: 1, offset: .3 },
+              { transform: `translate(${x}px, ${y + 45}px) rotate(${rotation * .5}deg) scale(.65)`, opacity: .85, offset: .65 },
+              { transform: `translate(${x * 1.08}px, ${y + 150}px) rotate(0deg) scale(.05)`, opacity: 0 }
+            ], { duration: 1500 + Math.random() * 700, delay: burst.delay + Math.random() * 100, easing: 'cubic-bezier(.15,.55,.3,1)' }));
+          }
+        }
+        await Promise.all(animations.map(animation => animation.finished));
+      } finally {
+        animations.forEach(animation => animation.cancel());
+        overlay.replaceChildren();
+        overlay.hidden = true;
+      }
+    }
+
+    async function showResults() {
+      if (state.stage !== STAGES.length || celebrating) return;
+      celebrating = true;
+      admin.inert = true;
+      try {
+        if (!saveState({ ...state, resultsVisible: true })) return;
+        renderResults();
+        await scrollToResults();
+        await playFireworks();
+      } catch (error) {
+        showNotice('Could not show final results. Please try again.', error);
+      } finally {
+        celebrating = false;
+        admin.inert = false;
+      }
+    }
+
+    function resetGame() {
+      if (!confirm('Reset the game and delete all current progress?')) return;
+      if (!saveState({ stage: 0, records: [], resultsVisible: false })) return;
+      renderBoard();
+      renderAdmin();
+      renderResults();
+    }
+
+    function escapeHTML(value) {
+      return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
+    }
+
+    function showError(error) {
+      board.innerHTML = `<div class="error" role="alert"><strong>Could not load the game.</strong><br><br>${escapeHTML(error.message)}<br><br>Run <code>uv run python -m http.server 8001</code> in this folder.</div>`;
+      admin.hidden = true;
+      document.getElementById('stages').textContent = 'Error';
+      console.error('Could not load the game.', error);
+    }
+
+    async function start() {
+      try {
+        const response = await fetch('./teams.csv', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`teams.csv returned HTTP ${response.status}`);
+        teams = parseCSV(await response.text());
+        loadState();
+        renderBoard();
+        renderAdmin();
+        renderResults();
+        if (state.resultsVisible) scrollToResults();
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    form.addEventListener('submit', completeStage);
+    adminInputs.addEventListener('input', validateInputs);
+    document.getElementById('resetButton').addEventListener('click', resetGame);
+    document.getElementById('showResultsButton').addEventListener('click', showResults);
+    start();
+  </script>
+</body>
+</html>
