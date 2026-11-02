@@ -169,7 +169,7 @@
         <div class="brand">
           <img class="logo" src="./wsp-logo.jpg" width="214" height="103" alt="WSP">
         </div>
-        <ol class="stages" id="stages" aria-label="Rounds" aria-live="polite"></ol>
+        <ol class="stages" id="stages" aria-label="Round" aria-live="polite"></ol>
       </header>
 
       <section class="hero">
@@ -206,10 +206,11 @@
   <div class="fireworks" id="fireworks" aria-hidden="true" hidden></div>
 
   <script>
-    const TIMELINE_HOURS = 55;
-    const DEADLINE = 40;
     const STORAGE_KEY = 'projectRaceStateV3';
-    const STAGES = ['Round 1', 'Round 2'];
+    const STAGES = [
+      { name: 'Round', timelineHours: 30, deadline: 20 },
+      { name: 'Round 2', timelineHours: 55, deadline: 40 }
+    ];
     const COLORS = ['#d92336','#202729','#f2b51c','#df1597','#00b5e5','#5b9092','#bd7381','#8b9c54','#bd7950','#777ca3'];
     const PIECES = ['🚂','🏠','🎩','🚗','🐕','⛵','🐈','🎲','🛸','🔑'];
 
@@ -303,14 +304,14 @@
       return state.records.length ? state.records[state.records.length - 1] : teams.map(() => ({ hours: 0 }));
     }
 
-    function renderAxis() {
-      return Array.from({ length: TIMELINE_HOURS / 5 + 1 }, (_, i) => i * 5).map(hour =>
-        `<span class="tick ${hour === DEADLINE ? 'deadline' : ''}" style="left:${hour / TIMELINE_HOURS * 100}%">${hour}</span>`
+    function renderAxis({ timelineHours, deadline }) {
+      return Array.from({ length: timelineHours / 5 + 1 }, (_, i) => i * 5).map(hour =>
+        `<span class="tick ${hour === deadline ? 'deadline' : ''}" style="left:${hour / timelineHours * 100}%">${hour}</span>`
       ).join('');
     }
 
-    function tokenMarkup(team, index, data) {
-      const position = Math.min(data.hours, TIMELINE_HOURS) / TIMELINE_HOURS * 100;
+    function tokenMarkup(team, index, data, timelineHours) {
+      const position = Math.min(data.hours, timelineHours) / timelineHours * 100;
       return `
         <div class="team-row" style="--team-color:${COLORS[index]}">
           <div class="team-label">
@@ -329,26 +330,27 @@
 
     function renderBoard() {
       const data = currentData();
-      document.documentElement.style.setProperty('--deadline', `${DEADLINE / TIMELINE_HOURS * 100}%`);
+      const stage = STAGES[Math.min(state.stage, STAGES.length - 1)];
+      document.documentElement.style.setProperty('--deadline', `${stage.deadline / stage.timelineHours * 100}%`);
       document.querySelector('.game-screen').style.setProperty('--team-count', teams.length);
       board.innerHTML = `
         <div class="board-inner">
-          <div class="axis-row"><div></div><div class="axis">${renderAxis()}</div><div></div></div>
-          <div id="rows">${teams.map((team, i) => tokenMarkup(team, i, data[i])).join('')}</div>
+          <div class="axis-row"><div></div><div class="axis">${renderAxis(stage)}</div><div></div></div>
+          <div id="rows">${teams.map((team, i) => tokenMarkup(team, i, data[i], stage.timelineHours)).join('')}</div>
           <div class="timeline-foot"><span class="overtime-label">Overtime</span></div>
         </div>`;
     }
 
     function renderAdmin() {
       const finished = state.stage === STAGES.length;
-      document.getElementById('stages').innerHTML = STAGES.map((name, i) =>
-        `<li class="${i < state.stage ? 'done' : i === state.stage ? 'current' : ''}" ${i === state.stage ? 'aria-current="step"' : ''}>
-          <span class="stage-marker" aria-hidden="true"></span>${name}
-        </li>`
-      ).join('');
+      const stage = STAGES[Math.min(state.stage, STAGES.length - 1)];
+      document.getElementById('stages').innerHTML = `
+        <li class="${finished ? 'done' : 'current'}" ${finished ? '' : 'aria-current="step"'}>
+          <span class="stage-marker" aria-hidden="true"></span>${stage.name}
+        </li>`;
       document.getElementById('showResultsButton').hidden = !finished;
       recordButton.hidden = finished;
-      recordButton.textContent = finished ? '' : STAGES[state.stage];
+      recordButton.textContent = finished ? '' : stage.name;
       admin.classList.toggle('is-finished', finished);
       admin.style.setProperty('--input-columns', Math.min(teams.length, 5));
       adminInputs.innerHTML = finished ? '' : teams.map((team, i) => `
@@ -356,7 +358,7 @@
           <label for="hours-${i}"><span class="team-dot" aria-hidden="true"></span>${escapeHTML(team.name)}</label>
           <div class="field">
             <input id="hours-${i}" data-team="${i}" type="number" inputmode="numeric" min="0" step="1" required placeholder="0"
-              aria-label="${escapeHTML(team.name)} hours for ${STAGES[state.stage]}" aria-describedby="hours-error-${i}">
+              aria-label="${escapeHTML(team.name)} hours for ${stage.name}" aria-describedby="hours-error-${i}">
             <span class="field-unit" aria-hidden="true">h</span>
           </div>
           <span class="field-error" id="hours-error-${i}" hidden>Whole hours only</span>

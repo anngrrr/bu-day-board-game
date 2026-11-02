@@ -37,17 +37,22 @@ NOTES
   Final results retain their full-height team-color indicators.
   Pieces appear on the timeline, without duplicates in the team labels.
 - Hour entry uses compact fields in a responsive grid below the board.
-- The top-right indicator shows the current and completed rounds.
+- The second round is a surprise: initially the indicator, button, and input
+  labels say only Round. Round 2 is revealed after the first round is recorded.
 - The game has two rounds. Enter nonnegative whole hours for every team,
-  then use Round 1 or Round 2 to add them to the running totals.
+  then use Round or Round 2 to add them to the running totals.
 - Zero is allowed. Blank, negative, fractional, and exponential values are not.
   Values and cumulative totals must be safe JavaScript integers.
 - Draft values are not applied until the round is recorded.
 - Recorded hours and the final-results view survive page refresh in the same
   tab using sessionStorage. Unrecorded input values are not saved.
 - Reset game clears both rounds and returns every team to 0 hours.
-- The timeline ends at 55 hours; overtime starts after the 40-hour deadline.
-  Larger totals are allowed and displayed in full; their pieces stop at 55.
+- Initially the timeline ends at 30 hours, with a deadline at 20 hours.
+  Recording the first round switches it to 55 hours, with a deadline at 40.
+  Only the hour scale, deadline shading, and piece positions change; board
+  dimensions, labels, inputs, and piece sizes remain unchanged.
+  Larger totals are displayed in full; pieces stop at the current scale's end.
+  Refresh restores the appropriate scale; resetting returns to 30/20.
 - Show final results becomes available after both rounds are recorded.
   The page scrolls to the results, then nine staggered firework bursts of
   different sizes play over them, with dense glowing sparks and falling trails.
